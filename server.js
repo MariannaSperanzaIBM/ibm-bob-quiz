@@ -19,7 +19,8 @@ let gameState = {
     currentQuestionIndex: 0,
     gameStarted: false,
     adminConnected: false,
-    currentQuestionAnswers: []
+    currentQuestionAnswers: [],
+    selectedGame: 1
 };
 
 // Socket.IO connection handling
@@ -83,8 +84,58 @@ io.on('connection', (socket) => {
         io.emit('gameState', gameState);
     });
 
+    // Handle admin booting a player
+    socket.on('bootPlayer', (playerId) => {
+        if (!socket.isAdmin) {
+            socket.emit('error', 'Only admin can boot players');
+            return;
+        }
+
+        if (gameState.gameStarted) {
+            socket.emit('error', 'Cannot boot players after game has started');
+            return;
+        }
+
+        const playerIndex = gameState.players.findIndex(p => p.id === playerId);
+        if (playerIndex !== -1) {
+            const playerName = gameState.players[playerIndex].name;
+            gameState.players.splice(playerIndex, 1);
+            
+            console.log(`Admin booted player: ${playerName}`);
+            
+            // Notify the booted player
+            io.to(playerId).emit('booted', {
+                message: 'You have been removed from the game by the administrator'
+            });
+            
+            // Broadcast updated player list to all clients
+            io.emit('playerLeft', {
+                playerName: playerName,
+                players: gameState.players
+            });
+            
+            io.emit('gameState', gameState);
+        }
+    });
+
+    // Handle game selection
+    socket.on('selectGame', (gameNumber) => {
+        if (!socket.isAdmin) {
+            socket.emit('error', 'Only admin can select game');
+            return;
+        }
+
+        console.log(`Admin selected Game ${gameNumber}`);
+        gameState.selectedGame = gameNumber;
+
+        // Broadcast game selection to all clients
+        io.emit('gameSelected', { gameNumber: gameNumber });
+        io.emit('gameState', gameState);
+    });
+
     // Handle admin starting quiz
-    socket.on('startQuiz', () => {
+    socket.on('startQuiz', (data) => {
+        const gameNumber = data?.gameNumber || gameState.selectedGame;
         if (!socket.isAdmin) {
             socket.emit('error', 'Only admin can start the quiz');
             return;
@@ -95,9 +146,10 @@ io.on('connection', (socket) => {
             return;
         }
 
-        console.log('Admin starting quiz');
+        console.log(`Admin starting quiz with Game ${gameNumber}`);
 
         gameState.gameStarted = true;
+        gameState.selectedGame = gameNumber;
         gameState.currentQuestionIndex = 0;
         gameState.currentQuestionAnswers = [];
 
@@ -106,15 +158,24 @@ io.on('connection', (socket) => {
             player.score = 0;
             player.correctAnswers = 0;
             player.answers = [];
+            player.currentQuestion = 0;
         });
 
         // Broadcast quiz start to ALL players simultaneously
         io.emit('quizStarted', {
             questionIndex: 0,
-            totalPlayers: gameState.players.length
+            totalPlayers: gameState.players.length,
+            gameNumber: gameNumber
         });
         
         io.emit('gameState', gameState);
+
+        // Emit initial player progress to admin
+        io.emit('playerProgress', {
+            players: gameState.players,
+            currentQuestionIndex: gameState.currentQuestionIndex,
+            currentQuestionAnswers: gameState.currentQuestionAnswers
+        });
     });
 
     // Handle answer submission
@@ -137,6 +198,9 @@ io.on('connection', (socket) => {
             player.score = Math.max(0, player.score + points); // points is negative for wrong answers
         }
 
+        // Update player's current question
+        player.currentQuestion = questionIndex;
+
         // Store answer data
         const answerData = {
             playerName: player.name,
@@ -151,12 +215,19 @@ io.on('connection', (socket) => {
         player.answers.push(answerData);
         gameState.currentQuestionAnswers.push(answerData);
 
-        // Broadcast answer count to all clients
+        // Broadcast answer count and player progress to all clients
         io.emit('answerSubmitted', {
             playerName: player.name,
             questionIndex: questionIndex,
             answeredCount: gameState.currentQuestionAnswers.length,
             totalPlayers: gameState.players.length
+        });
+
+        // Emit updated player progress to admin
+        io.emit('playerProgress', {
+            players: gameState.players,
+            currentQuestionIndex: gameState.currentQuestionIndex,
+            currentQuestionAnswers: gameState.currentQuestionAnswers
         });
 
         // Check if all players have answered
@@ -200,6 +271,15 @@ io.on('connection', (socket) => {
         }
         
         io.emit('gameState', gameState);
+        
+        // Emit updated player progress to admin AFTER state is updated
+        if (gameState.currentQuestionIndex < 5) {
+            io.emit('playerProgress', {
+                players: gameState.players,
+                currentQuestionIndex: gameState.currentQuestionIndex,
+                currentQuestionAnswers: gameState.currentQuestionAnswers
+            });
+        }
     });
 
     // Handle reset
@@ -212,7 +292,8 @@ io.on('connection', (socket) => {
             currentQuestionIndex: 0,
             gameStarted: false,
             adminConnected: false,
-            currentQuestionAnswers: []
+            currentQuestionAnswers: [],
+            selectedGame: 1
         };
 
         io.emit('quizReset');

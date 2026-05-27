@@ -1,8 +1,8 @@
 // Socket.IO client connection
 const socket = io();
 
-// Quiz questions about IBM
-const questions = [
+// Game 1: Original IBM questions
+const game1Questions = [
     {
         question: "What does IBM stand for?",
         answers: [
@@ -45,6 +45,64 @@ const questions = [
     }
 ];
 
+// Game 2: IBM Bob & AI questions
+const game2Questions = [
+    {
+        question: "What AI models does IBM Bob use to route tasks?",
+        answers: [
+            "Only IBM Granite models",
+            "GPT-4 and Gemini",
+            "LLaMA and Falcon",
+            "Claude, Mistral, and IBM Granite"
+        ],
+        correct: 3
+    },
+    {
+        question: "What game show did IBM's Watson AI win in 2011?",
+        answers: [
+            "Who Wants to Be a Millionaire",
+            "Jeopardy!",
+            "Wheel of Fortune",
+            "The Price is Right"
+        ],
+        correct: 1
+    },
+    {
+        question: "What Formula One team does IBM sponsor and provide AI Governance for?",
+        answers: [
+            "Mercedes",
+            "Red Bull",
+            "Ferrari",
+            "McLaren"
+        ],
+        correct: 2
+    },
+    {
+        question: "IBM Bob was built ___ by Bob itself.",
+        answers: [
+            "10%",
+            "25%",
+            "40%",
+            "60%"
+        ],
+        correct: 2
+    },
+    {
+        question: "How many internal IBM employees use Bob?",
+        answers: [
+            "10,000",
+            "40,000",
+            "80,000",
+            "100,000"
+        ],
+        correct: 2
+    }
+];
+
+// Active questions set (default to Game 1)
+let questions = game1Questions;
+let selectedGame = 1;
+
 // Local state
 let userRole = null;
 let myPlayerName = null;
@@ -85,8 +143,39 @@ socket.on('playerLeft', (data) => {
     updateAdminPanel(data.players);
 });
 
+socket.on('gameSelected', (data) => {
+    console.log(`Game ${data.gameNumber} selected by admin`);
+    
+    // Update local game selection for all clients
+    selectedGame = data.gameNumber;
+    if (data.gameNumber === 1) {
+        questions = game1Questions;
+    } else {
+        questions = game2Questions;
+    }
+    
+    // Update button styling if on admin screen
+    const game1Btn = document.getElementById('game1-btn');
+    const game2Btn = document.getElementById('game2-btn');
+    if (game1Btn && game2Btn) {
+        game1Btn.classList.remove('active');
+        game2Btn.classList.remove('active');
+        document.getElementById(`game${data.gameNumber}-btn`).classList.add('active');
+    }
+});
+
 socket.on('quizStarted', (data) => {
     console.log('Quiz started - all players answer simultaneously');
+    
+    // Sync game selection
+    if (data.gameNumber) {
+        selectedGame = data.gameNumber;
+        if (data.gameNumber === 1) {
+            questions = game1Questions;
+        } else {
+            questions = game2Questions;
+        }
+    }
     
     if (userRole === 'admin') {
         const questionNumEl = document.getElementById('admin-question-num');
@@ -143,6 +232,15 @@ socket.on('answerSubmitted', (data) => {
     }
 });
 
+socket.on('playerProgress', (data) => {
+    console.log('Player progress update received:', data);
+    console.log('Current user role:', userRole);
+    if (userRole === 'admin') {
+        console.log('Updating player progress table...');
+        updatePlayerProgressTable(data);
+    }
+});
+
 socket.on('showQuestionResults', (data) => {
     console.log('Showing question results');
     displayQuestionResults(data);
@@ -182,6 +280,12 @@ socket.on('quizReset', () => {
     }
 });
 
+socket.on('booted', (data) => {
+    alert(data.message);
+    resetLocalState();
+    showScreen('role-screen');
+});
+
 socket.on('error', (message) => {
     alert(message);
 });
@@ -196,6 +300,27 @@ function selectRole(role) {
     }
     
     socket.emit('selectRole', role);
+}
+
+function selectGame(gameNumber) {
+    selectedGame = gameNumber;
+    
+    // Update active button styling
+    document.getElementById('game1-btn').classList.remove('active');
+    document.getElementById('game2-btn').classList.remove('active');
+    document.getElementById(`game${gameNumber}-btn`).classList.add('active');
+    
+    // Switch questions array
+    if (gameNumber === 1) {
+        questions = game1Questions;
+    } else {
+        questions = game2Questions;
+    }
+    
+    console.log(`Game ${gameNumber} selected`);
+    
+    // Emit game selection to server
+    socket.emit('selectGame', gameNumber);
 }
 
 function joinQuiz() {
@@ -220,7 +345,7 @@ function joinQuiz() {
 }
 
 function adminStartQuiz() {
-    socket.emit('startQuiz');
+    socket.emit('startQuiz', { gameNumber: selectedGame });
     
     // Show restart button and hide start button
     const startBtn = document.getElementById('admin-start-btn');
@@ -264,7 +389,19 @@ function updateAdminPanel(players) {
     
     players.forEach(player => {
         const li = document.createElement('li');
-        li.textContent = player.name;
+        li.className = 'player-item';
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = player.name;
+        nameSpan.className = 'player-name';
+        
+        const bootBtn = document.createElement('button');
+        bootBtn.textContent = '🚫 Boot';
+        bootBtn.className = 'btn-boot';
+        bootBtn.onclick = () => bootPlayer(player.id, player.name);
+        
+        li.appendChild(nameSpan);
+        li.appendChild(bootBtn);
         list.appendChild(li);
     });
     
@@ -272,6 +409,80 @@ function updateAdminPanel(players) {
     if (startBtn) {
         startBtn.disabled = players.length === 0;
     }
+}
+
+function bootPlayer(playerId, playerName) {
+    if (confirm(`Are you sure you want to remove ${playerName} from the game?`)) {
+        socket.emit('bootPlayer', playerId);
+    }
+}
+
+function updatePlayerProgressTable(data) {
+    console.log('updatePlayerProgressTable called with data:', data);
+    const progressSection = document.getElementById('player-progress-section');
+    const tbody = document.getElementById('player-progress-body');
+    
+    console.log('progressSection:', progressSection);
+    console.log('tbody:', tbody);
+    
+    if (!progressSection || !tbody) {
+        console.error('Progress section or tbody not found!');
+        return;
+    }
+    
+    // Show the progress section if game has started
+    if (data.players.length > 0 && data.currentQuestionIndex >= 0) {
+        console.log('Showing progress section');
+        progressSection.style.display = 'block';
+    } else {
+        console.log('Hiding progress section');
+        progressSection.style.display = 'none';
+        return;
+    }
+    
+    tbody.innerHTML = '';
+    
+    console.log('Building table for', data.players.length, 'players');
+    console.log('Current question index:', data.currentQuestionIndex);
+    console.log('Current question answers:', data.currentQuestionAnswers);
+    
+    data.players.forEach(player => {
+        const row = document.createElement('tr');
+        
+        // Determine if player has answered current question
+        const hasAnsweredCurrent = data.currentQuestionAnswers.some(
+            answer => answer.playerId === player.id
+        );
+        
+        console.log(`Player ${player.name}: hasAnswered=${hasAnsweredCurrent}`);
+        
+        // Determine status
+        let status = '';
+        let statusClass = '';
+        
+        if (hasAnsweredCurrent) {
+            status = '✅ Answered';
+            statusClass = 'status-answered';
+        } else {
+            status = '⏳ Waiting...';
+            statusClass = 'status-waiting';
+        }
+        
+        // Current question display
+        const currentQ = data.currentQuestionIndex + 1;
+        
+        row.innerHTML = `
+            <td><strong>${player.name}</strong></td>
+            <td>Question ${currentQ}/5</td>
+            <td class="${statusClass}">${status}</td>
+            <td>${player.score}</td>
+            <td>${player.correctAnswers}/5</td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+    
+    console.log('Table updated successfully');
 }
 
 function updateAdminCurrentPlayer(player, questionIndex) {

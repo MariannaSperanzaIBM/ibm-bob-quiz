@@ -52,6 +52,20 @@
                     </div>
                 </div>
 
+                <div class="game-selection">
+                    <h2>Select Game</h2>
+                    <div class="game-buttons">
+                        <button class="btn btn-game active" id="game1-btn" onclick="selectGame(1)">
+                            <span class="game-title">Game 1</span>
+                            <span class="game-desc">Original IBM Questions</span>
+                        </button>
+                        <button class="btn btn-game" id="game2-btn" onclick="selectGame(2)">
+                            <span class="game-title">Game 2</span>
+                            <span class="game-desc">IBM Bob & AI Questions</span>
+                        </button>
+                    </div>
+                </div>
+
                 <div class="admin-controls">
                     <button class="btn btn-success" id="admin-start-btn" onclick="adminStartQuiz()">Start Quiz</button>
                     <button class="btn btn-secondary" id="admin-restart-btn" onclick="adminRestartQuiz()" style="display: none;">Restart Quiz</button>
@@ -60,6 +74,22 @@
                 <div class="participants-section">
                     <h2>Connected Players</h2>
                     <ul id="admin-participants" class="participants-list"></ul>
+                </div>
+
+                <div class="player-progress-section" id="player-progress-section" style="display: none;">
+                    <h2>Player Progress</h2>
+                    <table class="progress-table">
+                        <thead>
+                            <tr>
+                                <th>Player</th>
+                                <th>Current Question</th>
+                                <th>Status</th>
+                                <th>Score</th>
+                                <th>Correct</th>
+                            </tr>
+                        </thead>
+                        <tbody id="player-progress-body"></tbody>
+                    </table>
                 </div>
             </div>
         </div>
