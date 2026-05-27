@@ -12,18 +12,19 @@
         <div id="role-screen" class="screen active">
             <div class="role-selection">
                 <h1>🎯 IBM Bob Quiz</h1>
+                <div class="bob-image-container">
+                    <img src="BobAnimation.svg" alt="Bob" class="bob-image">
+                </div>
                 <p>Select your role to continue</p>
                 <div class="role-buttons">
-                    <button class="role-btn admin-btn" onclick="selectRole('admin')">
-                        <span class="role-icon">👨‍💼</span>
-                        <span class="role-title">Administrator</span>
-                        <span class="role-desc">Control the quiz flow</span>
-                    </button>
                     <button class="role-btn player-btn" onclick="selectRole('player')">
                         <span class="role-icon">🎮</span>
                         <span class="role-title">Player</span>
                         <span class="role-desc">Join and play the quiz</span>
                     </button>
+                </div>
+                <div class="admin-link-container">
+                    <a href="#" class="admin-link" onclick="selectRole('admin'); return false;">Administrator</a>
                 </div>
             </div>
         </div>
@@ -53,6 +54,7 @@
 
                 <div class="admin-controls">
                     <button class="btn btn-success" id="admin-start-btn" onclick="adminStartQuiz()">Start Quiz</button>
+                    <button class="btn btn-secondary" id="admin-restart-btn" onclick="adminRestartQuiz()" style="display: none;">Restart Quiz</button>
                 </div>
 
                 <div class="participants-section">
