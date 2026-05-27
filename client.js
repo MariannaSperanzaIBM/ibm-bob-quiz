@@ -19,14 +19,14 @@ const questions = [
         correct: 0
     },
     {
-        question: "What was IBM's original name?",
+        question: "Building AI agents represents what percentage of the total work involved?",
         answers: [
-            "Computing-Tabulating-Recording Company",
-            "International Computing Corporation",
-            "Business Machines Inc",
-            "Tabulating Machine Company"
+            "80%",
+            "50%",
+            "20%",
+            "40%"
         ],
-        correct: 0
+        correct: 2
     },
     {
         question: "Which IBM computer famously defeated chess champion Garry Kasparov?",
@@ -34,9 +34,14 @@ const questions = [
         correct: 1
     },
     {
-        question: "What is IBM's nickname often used in the tech industry?",
-        answers: ["Big Blue", "Tech Giant", "Blue Machine", "The Corporation"],
-        correct: 0
+        question: "What are the three layers of IBM's AI governance stack, in order?",
+        answers: [
+            "Plan, Build, Deploy",
+            "Visibility, Control, Accountability",
+            "Monitor, Optimize, Scale",
+            "Design, Test, Launch"
+        ],
+        correct: 1
     }
 ];
 
@@ -160,8 +165,21 @@ socket.on('quizComplete', (data) => {
 
 socket.on('quizReset', () => {
     console.log('Quiz reset');
-    resetLocalState();
-    showScreen('role-screen');
+    
+    // Show restart prompt for existing players
+    if (userRole === 'player' && myPlayerName) {
+        const shouldRestart = confirm('The quiz has been restarted by the administrator. Would you like to rejoin?');
+        if (shouldRestart) {
+            resetLocalState();
+            showScreen('role-screen');
+        } else {
+            resetLocalState();
+            showScreen('role-screen');
+        }
+    } else {
+        resetLocalState();
+        showScreen('role-screen');
+    }
 });
 
 socket.on('error', (message) => {
@@ -203,6 +221,24 @@ function joinQuiz() {
 
 function adminStartQuiz() {
     socket.emit('startQuiz');
+    
+    // Show restart button and hide start button
+    const startBtn = document.getElementById('admin-start-btn');
+    const restartBtn = document.getElementById('admin-restart-btn');
+    if (startBtn) startBtn.style.display = 'none';
+    if (restartBtn) restartBtn.style.display = 'block';
+}
+
+function adminRestartQuiz() {
+    if (confirm('Are you sure you want to restart the quiz? All progress will be lost.')) {
+        socket.emit('resetQuiz');
+        
+        // Show start button and hide restart button
+        const startBtn = document.getElementById('admin-start-btn');
+        const restartBtn = document.getElementById('admin-restart-btn');
+        if (startBtn) startBtn.style.display = 'block';
+        if (restartBtn) restartBtn.style.display = 'none';
+    }
 }
 
 function updateParticipantsList(players) {
